@@ -206,18 +206,17 @@ void Player::sendKeyDown(char c) {
     HWND tgt = targetWindow();
     if (!tgt) return;
 
+    LPARAM lp = makeKeyLParam((UINT)vk, true);
+
+    // 先发到 targetWindow 本身（雷电一直走这条路，和以前完全一样）
+    PostMessageW(tgt, WM_KEYDOWN, (WPARAM)vk, lp);
+
+    // 如果是 MuMu 的 nemuwin，再额外发到它的父窗口和顶层窗口
     if (isMuMuWindow(tgt)) {
-        // ===== MuMu 路径：SendInput 系统级注入 =====
-        INPUT in = {};
-        in.type = INPUT_KEYBOARD;
-        in.ki.wVk = (WORD)vk;
-        in.ki.wScan = (WORD)MapVirtualKeyW((UINT)vk, MAPVK_VK_TO_VSC);
-        in.ki.dwFlags = 0;
-        SendInput(1, &in, sizeof(INPUT));
-    }
-    else {
-        // ===== 雷电 / 其他：保持原来的 PostMessage（一行没改） =====
-        PostMessageW(tgt, WM_KEYDOWN, (WPARAM)vk, makeKeyLParam((UINT)vk, true));
+        HWND parent = GetParent(tgt);
+        if (parent) PostMessageW(parent, WM_KEYDOWN, (WPARAM)vk, lp);
+        HWND root = GetAncestor(tgt, GA_ROOT);
+        if (root && root != parent) PostMessageW(root, WM_KEYDOWN, (WPARAM)vk, lp);
     }
 }
 
@@ -227,16 +226,15 @@ void Player::sendKeyUp(char c) {
     HWND tgt = targetWindow();
     if (!tgt) return;
 
+    LPARAM lp = makeKeyLParam((UINT)vk, false);
+
+    PostMessageW(tgt, WM_KEYUP, (WPARAM)vk, lp);
+
     if (isMuMuWindow(tgt)) {
-        INPUT in = {};
-        in.type = INPUT_KEYBOARD;
-        in.ki.wVk = (WORD)vk;
-        in.ki.wScan = (WORD)MapVirtualKeyW((UINT)vk, MAPVK_VK_TO_VSC);
-        in.ki.dwFlags = KEYEVENTF_KEYUP;
-        SendInput(1, &in, sizeof(INPUT));
-    }
-    else {
-        PostMessageW(tgt, WM_KEYUP, (WPARAM)vk, makeKeyLParam((UINT)vk, false));
+        HWND parent = GetParent(tgt);
+        if (parent) PostMessageW(parent, WM_KEYUP, (WPARAM)vk, lp);
+        HWND root = GetAncestor(tgt, GA_ROOT);
+        if (root && root != parent) PostMessageW(root, WM_KEYUP, (WPARAM)vk, lp);
     }
 }
 // ============ 坐标系统（键盘演奏不使用，仅供 calib 调试） ============
@@ -489,27 +487,6 @@ void Player::reset() {
     releaseAll();
     index_ = 0;
     savedElapsedMs_ = 0;
-
-    // 仅 MuMu：SendInput 需要窗口在前台，把 MuMu 主窗口切到前台
-    // 雷电 / 其他模式：完全不进这个 if，reset 行为和原来一样
-    if (hwnd_ && isMuMuWindow(hwnd_)) {
-        HWND root = GetAncestor(hwnd_, GA_ROOT);
-        if (root) {
-            DWORD fgTid = GetWindowThreadProcessId(GetForegroundWindow(), NULL);
-            DWORD myTid = GetCurrentThreadId();
-            if (fgTid != myTid) {
-                AttachThreadInput(myTid, fgTid, TRUE);
-                SetForegroundWindow(root);
-                BringWindowToTop(root);
-                AttachThreadInput(myTid, fgTid, FALSE);
-            }
-            else {
-                SetForegroundWindow(root);
-            }
-            printf("[window] 已把 MuMu 切到前台：%p\n", root);
-        }
-    }
-
     QueryPerformanceFrequency(&freq_);
     QueryPerformanceCounter(&start_);
 }
