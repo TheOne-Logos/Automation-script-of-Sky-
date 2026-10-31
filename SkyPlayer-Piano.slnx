@@ -1,0 +1,7 @@
+<Solution>
+  <Configurations>
+    <Platform Name="x64" />
+    <Platform Name="x86" />
+  </Configurations>
+  <Project Path="SkyPlayer-Piano/SkyPlayer-Piano.vcxproj" Id="2a3bd818-9595-4f73-b41b-f6ee1c572f4d" />
+</Solution>
